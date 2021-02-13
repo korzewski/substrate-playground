@@ -283,6 +283,8 @@ construct_runtime!(
 		Sudo: pallet_sudo::{Module, Call, Config<T>, Storage, Event<T>},
 		// Include the custom logic from the template pallet in the runtime.
 		TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
+
+		Nicks: pallet_nicks::{Module, Call, Storage, Event<T>},
 	}
 );
 
@@ -485,4 +487,23 @@ impl_runtime_apis! {
 			Ok(batches)
 		}
 	}
+}
+
+
+parameter_types! {
+	pub const NickReservationFee: u128 = 100;
+	pub const MinNickLength: usize = 8;
+	pub const MaxNickLength: usize = 32;
+}
+
+impl pallet_nicks::Trait for Runtime {
+	type ReservationFee = NickReservationFee;
+	type MinLength = MinNickLength;
+	type MaxLength = MaxNickLength;
+	
+	type Currency = pallet_balances::Module<Runtime>;
+	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
+
+	type Slashed = ();
+	type Event = Event;
 }
