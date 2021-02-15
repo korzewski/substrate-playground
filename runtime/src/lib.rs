@@ -266,6 +266,10 @@ impl pallet_template::Trait for Runtime {
 	type Event = Event;
 }
 
+impl pallet_poe::Trait for Runtime {
+	type Event = Event;
+}
+
 // Create the runtime by composing the FRAME pallets that were previously configured.
 construct_runtime!(
 	pub enum Runtime where
@@ -285,6 +289,7 @@ construct_runtime!(
 		TemplateModule: pallet_template::{Module, Call, Storage, Event<T>},
 
 		Nicks: pallet_nicks::{Module, Call, Storage, Event<T>},
+		PoeModule: pallet_poe::{Module, Call, Storage, Event<T>},
 	}
 );
 
