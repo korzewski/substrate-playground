@@ -1,0 +1,10 @@
+{
+    "Kitty": {
+        "id": "u128",
+        "owner_id": "AccountId",
+        "dna": "i128"
+    },
+    "User": {
+        "kitties": "Vec<Kitty>"
+    }
+}

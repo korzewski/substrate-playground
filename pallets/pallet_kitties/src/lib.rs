@@ -3,7 +3,6 @@
 use frame_support::{codec::{Encode, Decode}, decl_error, decl_event, decl_module, decl_storage};
 use frame_system::{self as system, ensure_signed};
 use sp_std::{vec::Vec};
-use sp_runtime::{RuntimeDebug};
 
 pub trait Trait: system::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
@@ -14,7 +13,7 @@ decl_event! {
 	where
 		<T as system::Trait>::AccountId,
 	{
-		KittyCreated(AccountId, Kitty<AccountId>),
+		KittyCreated(AccountId, User<AccountId>),
 	}
 }
 
@@ -26,12 +25,12 @@ decl_error! {
 
 decl_storage! {
 	trait Store for Module<T: Trait> as KittiesModule {
-		Kitties get(fn kitties): map hasher(blake2_128_concat) T::AccountId => Vec<Kitty<T::AccountId>>;
+		UserData get(fn user_data): map hasher(blake2_128_concat) T::AccountId => User<T::AccountId>;
+		NextKittyId get(fn next_kitty_id): u128;
 	}
 }
 
 decl_module! {
-
 	pub struct Module<T: Trait> for enum Call
 	where
 		origin: T::Origin 
@@ -42,30 +41,34 @@ decl_module! {
 
 		#[weight = 10_000]
 		fn create_kitty(origin) {
-			let account = ensure_signed(origin)?;
+			let account_id = ensure_signed(origin)?;
 
-			let kitty = Kitty::new(account.clone());
+			let next_kitty_id = Self::next_kitty_id();
+			let kitty = Kitty::new(next_kitty_id, account_id.clone());
 
-			// let mut kitties = Kitties::<T>::get(&account);
-			// kitties.push(kitty.clone());
-			
-			// Kitties::<T>::insert(&account, kitties);
+			let next_kitty_id = next_kitty_id.checked_add(1).expect("next_kitty_id is out of scope");
+			NextKittyId::put(next_kitty_id);
 
-			Self::deposit_event(RawEvent::KittyCreated(account, kitty));
+			let mut user = Self::user_data(account_id.clone());
+
+			user.add_kitty(kitty);
+
+			UserData::<T>::insert(&account_id, &user);
+
+			Self::deposit_event(RawEvent::KittyCreated(account_id, user));
 		}
 	}
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, Debug)]
 pub struct Kitty<AccountId> {
-	id: Vec<u8>,
+	id: u128,
 	owner_id: AccountId,
 	dna: i128,
 }
 
 impl<AccountId> Kitty<AccountId> {
-	pub fn new(owner_id: AccountId) -> Kitty<AccountId> {
-		let id = Vec::from("kitty_id_example");
+	pub fn new(id: u128, owner_id: AccountId) -> Kitty<AccountId> {
 		let dna = 128;
 
 		Kitty {
@@ -76,24 +79,13 @@ impl<AccountId> Kitty<AccountId> {
 	}
 }
 
-// struct User {
-// 	id: Vec<u8>,
-// 	kitties: Vec<Kitty>,
-// }
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, Debug)]
+pub struct User<AccountId> {
+	kitties: Vec<Kitty<AccountId>>,
+}
 
-// impl User {
-// 	pub fn new() -> User {
-// 		let id = Vec::from("user_id_example");
-
-// 		User {
-// 			id,
-// 			kitties: Vec::new(),
-// 		}
-// 	}
-
-// 	pub fn create_kitty(&mut self) {
-// 		let kitty = Kitty::new(&self.id);
-
-// 		self.kitties.push(kitty);
-// 	}
-// }
+impl<AccountId> User<AccountId> {
+	pub fn add_kitty(&mut self, kitty: Kitty<AccountId>) {
+		self.kitties.push(kitty);
+	}
+}
