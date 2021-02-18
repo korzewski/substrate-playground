@@ -48,17 +48,11 @@ decl_module! {
 		fn create_kitty(origin) {
 			let account_id = ensure_signed(origin)?;
 
-			let subject = Self::encode_and_update_seed();
-			let kitty_dna = T::RandomnessSource::random(&subject);
+			let kitty_id = Self::generate_next_kitty_id();
+			let kitty_dna = Self::generate_random();
+			let kitty = Kitty::new(kitty_id, account_id.clone(), kitty_dna);
 
-			let next_kitty_id = Self::next_kitty_id();
-			let kitty = Kitty::new(next_kitty_id, account_id.clone(), kitty_dna);
-
-			let next_kitty_id = next_kitty_id.checked_add(1).expect("next_kitty_id is out of scope");
-			NextKittyId::put(next_kitty_id);
-
-			let mut user = Self::user_data(account_id.clone());
-
+			let mut user = Self::user_data(&account_id);
 			user.add_kitty(kitty);
 
 			UserData::<T>::insert(&account_id, &user);
@@ -73,6 +67,19 @@ impl<T: Trait> Module<T> {
 		let nonce = Self::nonce();
 		Nonce::put(nonce.wrapping_add(1));
 		nonce.encode()
+	}
+
+	fn generate_next_kitty_id() -> u128 {
+		let next_kitty_id = Self::next_kitty_id();
+		let next_kitty_id = next_kitty_id.checked_add(1).expect("next_kitty_id is out of scope");
+		NextKittyId::put(next_kitty_id);
+
+		next_kitty_id
+	}
+
+	fn generate_random() -> H256 {
+		let subject = Self::encode_and_update_seed();
+		T::RandomnessSource::random(&subject)
 	}
 }
 
