@@ -272,6 +272,7 @@ impl pallet_poe::Trait for Runtime {
 
 impl pallet_kitties::Trait for Runtime {
 	type Event = Event;
+	type RandomnessSource = RandomnessCollectiveFlip;
 }
 
 // Create the runtime by composing the FRAME pallets that were previously configured.

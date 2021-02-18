@@ -2,7 +2,7 @@
     "Kitty": {
         "id": "u128",
         "owner_id": "AccountId",
-        "dna": "i128"
+        "dna": "H256"
     },
     "User": {
         "kitties": "Vec<Kitty>"
