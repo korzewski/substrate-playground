@@ -1,4 +1,5 @@
 {
+    "KittyIdType": "u128",
     "Kitty": {
         "id": "u128",
         "owner_id": "AccountId",

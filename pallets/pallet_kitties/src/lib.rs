@@ -11,24 +11,13 @@ pub trait Trait: system::Trait {
 	type RandomnessSource: Randomness<H256>;
 }
 
-decl_event! {
-	pub enum Event<T>
-	where
-		<T as system::Trait>::AccountId,
-	{
-		KittyCreated(AccountId, User<AccountId>),
-	}
-}
-
-decl_error! {
-	pub enum Error for Module<T: Trait> {
-		
-	}
-}
+type KittyIdType = u128;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as KittiesModule {
-		NextKittyId get(fn next_kitty_id): u128;
+		NextKittyId get(fn next_kitty_id): KittyIdType;
+		Kitties get(fn kitties): map hasher(blake2_128_concat) KittyIdType => Kitty<T::AccountId>;
+
 		UserData get(fn user_data): map hasher(blake2_128_concat) T::AccountId => User<T::AccountId>;
 
 		Nonce get(fn nonce): u32;
@@ -52,12 +41,15 @@ decl_module! {
 			let kitty_dna = Self::generate_random();
 			let kitty = Kitty::new(kitty_id, account_id.clone(), kitty_dna);
 
+			Kitties::<T>::insert(&kitty_id, &kitty);
+
 			let mut user = Self::user_data(&account_id);
-			user.add_kitty(kitty);
+			user.add_kitty(kitty.clone());
 
 			UserData::<T>::insert(&account_id, &user);
 
-			Self::deposit_event(RawEvent::KittyCreated(account_id, user));
+			Self::deposit_event(RawEvent::KittyCreated(account_id.clone(), kitty));
+			Self::deposit_event(RawEvent::UserUpdated(account_id, user));
 		}
 	}
 }
@@ -69,7 +61,7 @@ impl<T: Trait> Module<T> {
 		nonce.encode()
 	}
 
-	fn generate_kitty_id() -> u128 {
+	fn generate_kitty_id() -> KittyIdType {
 		let next_kitty_id = Self::next_kitty_id();
 		// TODO - ERROR HANDLING
 		let next_kitty_id = next_kitty_id.checked_add(1).expect("next_kitty_id is out of scope");
@@ -84,15 +76,31 @@ impl<T: Trait> Module<T> {
 	}
 }
 
+decl_event! {
+	pub enum Event<T>
+	where
+		<T as system::Trait>::AccountId,
+	{
+		KittyCreated(AccountId, Kitty<AccountId>),
+		UserUpdated(AccountId, User<AccountId>),
+	}
+}
+
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		
+	}
+}
+
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, Debug)]
 pub struct Kitty<AccountId> {
-	id: u128,
+	id: KittyIdType,
 	owner_id: AccountId,
 	dna: H256,
 }
 
 impl<AccountId> Kitty<AccountId> {
-	pub fn new(id: u128, owner_id: AccountId, dna: H256) -> Kitty<AccountId> {
+	pub fn new(id: KittyIdType, owner_id: AccountId, dna: H256) -> Kitty<AccountId> {
 		Kitty {
 			id,
 			owner_id,
