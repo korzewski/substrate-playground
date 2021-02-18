@@ -48,7 +48,7 @@ decl_module! {
 		fn create_kitty(origin) {
 			let account_id = ensure_signed(origin)?;
 
-			let kitty_id = Self::generate_next_kitty_id();
+			let kitty_id = Self::generate_kitty_id();
 			let kitty_dna = Self::generate_random();
 			let kitty = Kitty::new(kitty_id, account_id.clone(), kitty_dna);
 
@@ -69,8 +69,9 @@ impl<T: Trait> Module<T> {
 		nonce.encode()
 	}
 
-	fn generate_next_kitty_id() -> u128 {
+	fn generate_kitty_id() -> u128 {
 		let next_kitty_id = Self::next_kitty_id();
+		// TODO - ERROR HANDLING
 		let next_kitty_id = next_kitty_id.checked_add(1).expect("next_kitty_id is out of scope");
 		NextKittyId::put(next_kitty_id);
 
