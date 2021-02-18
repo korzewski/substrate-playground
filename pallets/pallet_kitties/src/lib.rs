@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{codec::{Encode, Decode}, decl_error, decl_event, decl_module, decl_storage, traits::Randomness};
+use frame_support::{codec::{Encode, Decode}, decl_error, decl_event, decl_module, decl_storage, traits::Randomness, ensure};
 use frame_system::{self as system, ensure_signed};
 use sp_std::{vec::Vec};
 use sp_core::{H256};
@@ -12,11 +12,14 @@ pub trait Trait: system::Trait {
 }
 
 type KittyIdType = u128;
+type KittyPriceType = u128;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as KittiesModule {
 		NextKittyId get(fn next_kitty_id): KittyIdType;
 		Kitties get(fn kitties): map hasher(blake2_128_concat) KittyIdType => Kitty<T::AccountId>;
+
+		KittiesForSale get(fn kitties_for_sale): Vec<KittyIdType>;
 
 		UserData get(fn user_data): map hasher(blake2_128_concat) T::AccountId => User<T::AccountId>;
 
@@ -51,6 +54,34 @@ decl_module! {
 			Self::deposit_event(RawEvent::KittyCreated(account_id.clone(), kitty));
 			Self::deposit_event(RawEvent::UserUpdated(account_id, user));
 		}
+
+		#[weight = 10_000]
+		fn kitty_for_sale(origin, kitty_id: KittyIdType, price: KittyPriceType) {
+			let account_id = ensure_signed(origin)?;
+
+			let mut kitties_for_sale = Self::kitties_for_sale();
+
+			match kitties_for_sale.binary_search(&kitty_id) {
+				Ok(_) => {
+					// Err(Error::<T>::KittyAlreadyForSale); ??? it's not working
+					ensure!(false, Error::<T>::KittyAlreadyForSale);
+				},
+				Err(index) => {
+					kitties_for_sale.insert(index, kitty_id);
+				},
+			}
+			
+			let mut kitty = Kitties::<T>::get(kitty_id);
+			
+			ensure!(kitty.owner_id == account_id, Error::<T>::NotKittyOwner);
+
+			kitty.set_price(price);
+
+			Kitties::<T>::insert(&kitty_id, &kitty);
+			KittiesForSale::put(kitties_for_sale);
+
+			Self::deposit_event(RawEvent::KittyForSale(account_id, kitty));
+		}
 	}
 }
 
@@ -82,13 +113,15 @@ decl_event! {
 		<T as system::Trait>::AccountId,
 	{
 		KittyCreated(AccountId, Kitty<AccountId>),
+		KittyForSale(AccountId, Kitty<AccountId>),
 		UserUpdated(AccountId, User<AccountId>),
 	}
 }
 
 decl_error! {
 	pub enum Error for Module<T: Trait> {
-		
+		KittyAlreadyForSale,
+		NotKittyOwner,
 	}
 }
 
@@ -97,6 +130,7 @@ pub struct Kitty<AccountId> {
 	id: KittyIdType,
 	owner_id: AccountId,
 	dna: H256,
+	price: KittyPriceType,
 }
 
 impl<AccountId> Kitty<AccountId> {
@@ -105,7 +139,12 @@ impl<AccountId> Kitty<AccountId> {
 			id,
 			owner_id,
 			dna,
+			price: 0,
 		}
+	}
+
+	pub fn set_price(&mut self, price: KittyPriceType) {
+		self.price = price;
 	}
 }
 
