@@ -7,6 +7,6 @@
         "dna": "H256"
     },
     "User": {
-        "kitties": "Vec<Kitty>"
+        "kitties": "Vec<KittyIdType>"
     }
 }

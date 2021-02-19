@@ -21,7 +21,7 @@ decl_storage! {
 
 		KittiesForSale get(fn kitties_for_sale): map hasher(blake2_128_concat) KittyIdType => KittyPriceType;
 
-		UserData get(fn user_data): map hasher(blake2_128_concat) T::AccountId => User<T::AccountId>;
+		Users get(fn user_data): map hasher(blake2_128_concat) T::AccountId => User;
 
 		Nonce get(fn nonce): u32;
 	}
@@ -46,10 +46,10 @@ decl_module! {
 
 			Kitties::<T>::insert(&kitty_id, &kitty);
 
-			let mut user = UserData::<T>::get(&account_id);
-			user.add_kitty(kitty.clone());
+			let mut user = Users::<T>::get(&account_id);
+			user.add_kitty(kitty_id);
 
-			UserData::<T>::insert(&account_id, &user);
+			Users::<T>::insert(&account_id, &user);
 
 			Self::deposit_event(RawEvent::KittyCreated(account_id.clone(), kitty));
 			Self::deposit_event(RawEvent::UserUpdated(account_id, user));
@@ -101,7 +101,7 @@ decl_event! {
 	{
 		KittyCreated(AccountId, Kitty<AccountId>),
 		KittyForSale(AccountId, Kitty<AccountId>, KittyPriceType),
-		UserUpdated(AccountId, User<AccountId>),
+		UserUpdated(AccountId, User),
 	}
 }
 
@@ -130,12 +130,12 @@ impl<AccountId> Kitty<AccountId> {
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, Debug)]
-pub struct User<AccountId> {
-	kitties: Vec<Kitty<AccountId>>,
+pub struct User {
+	kitties: Vec<KittyIdType>,
 }
 
-impl<AccountId> User<AccountId> {
-	pub fn add_kitty(&mut self, kitty: Kitty<AccountId>) {
-		self.kitties.push(kitty);
+impl User {
+	pub fn add_kitty(&mut self, kitty_id: KittyIdType) {
+		self.kitties.push(kitty_id);
 	}
 }
