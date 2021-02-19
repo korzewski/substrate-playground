@@ -1,6 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{codec::{Encode, Decode}, decl_error, decl_event, decl_module, decl_storage, traits::Randomness};
+use frame_support::{codec::{Encode, Decode}, decl_error, decl_event, decl_module, decl_storage, traits::Randomness, ensure};
 use frame_system::{self as system, ensure_signed};
 use sp_std::{vec::Vec};
 use sp_core::{H256};
@@ -12,13 +12,16 @@ pub trait Trait: system::Trait {
 }
 
 type KittyIdType = u128;
+type KittyPriceType = u128;
 
 decl_storage! {
 	trait Store for Module<T: Trait> as KittiesModule {
 		NextKittyId get(fn next_kitty_id): KittyIdType;
 		Kitties get(fn kitties): map hasher(blake2_128_concat) KittyIdType => Kitty<T::AccountId>;
 
-		UserData get(fn user_data): map hasher(blake2_128_concat) T::AccountId => User<T::AccountId>;
+		KittiesForSale get(fn kitties_for_sale): map hasher(blake2_128_concat) KittyIdType => KittyPriceType;
+
+		Users get(fn user_data): map hasher(blake2_128_concat) T::AccountId => User;
 
 		Nonce get(fn nonce): u32;
 	}
@@ -43,13 +46,28 @@ decl_module! {
 
 			Kitties::<T>::insert(&kitty_id, &kitty);
 
-			let mut user = Self::user_data(&account_id);
-			user.add_kitty(kitty.clone());
+			let mut user = Users::<T>::get(&account_id);
+			user.add_kitty(kitty_id);
 
-			UserData::<T>::insert(&account_id, &user);
+			Users::<T>::insert(&account_id, &user);
 
 			Self::deposit_event(RawEvent::KittyCreated(account_id.clone(), kitty));
 			Self::deposit_event(RawEvent::UserUpdated(account_id, user));
+		}
+
+		#[weight = 10_000]
+		fn kitty_for_sale(origin, kitty_id: KittyIdType, price: KittyPriceType) {
+			let account_id = ensure_signed(origin)?;
+
+			ensure!(!KittiesForSale::contains_key(&kitty_id), Error::<T>::KittyAlreadyForSale);
+
+			let kitty = Kitties::<T>::get(&kitty_id);
+			
+			ensure!(kitty.owner_id == account_id, Error::<T>::NotKittyOwner);
+
+			KittiesForSale::insert(&kitty_id, &price);
+
+			Self::deposit_event(RawEvent::KittyForSale(account_id, kitty, price));
 		}
 	}
 }
@@ -62,7 +80,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	fn generate_kitty_id() -> KittyIdType {
-		let next_kitty_id = Self::next_kitty_id();
+		let next_kitty_id = NextKittyId::get();
 		// TODO - ERROR HANDLING
 		let next_kitty_id = next_kitty_id.checked_add(1).expect("next_kitty_id is out of scope");
 		NextKittyId::put(next_kitty_id);
@@ -82,13 +100,15 @@ decl_event! {
 		<T as system::Trait>::AccountId,
 	{
 		KittyCreated(AccountId, Kitty<AccountId>),
-		UserUpdated(AccountId, User<AccountId>),
+		KittyForSale(AccountId, Kitty<AccountId>, KittyPriceType),
+		UserUpdated(AccountId, User),
 	}
 }
 
 decl_error! {
 	pub enum Error for Module<T: Trait> {
-		
+		KittyAlreadyForSale,
+		NotKittyOwner,
 	}
 }
 
@@ -110,12 +130,12 @@ impl<AccountId> Kitty<AccountId> {
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, Debug)]
-pub struct User<AccountId> {
-	kitties: Vec<Kitty<AccountId>>,
+pub struct User {
+	kitties: Vec<KittyIdType>,
 }
 
-impl<AccountId> User<AccountId> {
-	pub fn add_kitty(&mut self, kitty: Kitty<AccountId>) {
-		self.kitties.push(kitty);
+impl User {
+	pub fn add_kitty(&mut self, kitty_id: KittyIdType) {
+		self.kitties.push(kitty_id);
 	}
 }

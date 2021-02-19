@@ -1,11 +1,12 @@
 {
     "KittyIdType": "u128",
+    "KittyPriceType": "u128",
     "Kitty": {
-        "id": "u128",
+        "id": "KittyIdType",
         "owner_id": "AccountId",
         "dna": "H256"
     },
     "User": {
-        "kitties": "Vec<Kitty>"
+        "kitties": "Vec<KittyIdType>"
     }
 }
