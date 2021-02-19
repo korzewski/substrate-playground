@@ -62,12 +62,25 @@ decl_module! {
 			ensure!(!KittiesForSale::contains_key(&kitty_id), Error::<T>::KittyAlreadyForSale);
 
 			let kitty = Kitties::<T>::get(&kitty_id);
-			
 			ensure!(kitty.owner_id == account_id, Error::<T>::NotKittyOwner);
 
 			KittiesForSale::insert(&kitty_id, &price);
 
 			Self::deposit_event(RawEvent::KittyForSale(account_id, kitty, price));
+		}
+
+		#[weight = 10_000]
+		fn cancel_kitty_for_sale(origin, kitty_id: KittyIdType) {
+			let account_id = ensure_signed(origin)?;
+
+			ensure!(KittiesForSale::contains_key(&kitty_id), Error::<T>::KittyIsNotForSale);
+			
+			let kitty = Kitties::<T>::get(&kitty_id);
+			ensure!(kitty.owner_id == account_id, Error::<T>::NotKittyOwner);
+
+			KittiesForSale::remove(&kitty_id);
+
+			Self::deposit_event(RawEvent::CancelKittyForSale(account_id, kitty));
 		}
 	}
 }
@@ -101,6 +114,7 @@ decl_event! {
 	{
 		KittyCreated(AccountId, Kitty<AccountId>),
 		KittyForSale(AccountId, Kitty<AccountId>, KittyPriceType),
+		CancelKittyForSale(AccountId, Kitty<AccountId>),
 		UserUpdated(AccountId, User),
 	}
 }
@@ -108,6 +122,7 @@ decl_event! {
 decl_error! {
 	pub enum Error for Module<T: Trait> {
 		KittyAlreadyForSale,
+		KittyIsNotForSale,
 		NotKittyOwner,
 	}
 }
