@@ -19,7 +19,7 @@ decl_storage! {
 		NextKittyId get(fn next_kitty_id): KittyIdType;
 		Kitties get(fn kitties): map hasher(blake2_128_concat) KittyIdType => Kitty<T::AccountId>;
 
-		KittiesForSale get(fn kitties_for_sale): Vec<KittyIdType>;
+		KittiesForSale get(fn kitties_for_sale): map hasher(blake2_128_concat) KittyIdType => KittyPriceType;
 
 		UserData get(fn user_data): map hasher(blake2_128_concat) T::AccountId => User<T::AccountId>;
 
@@ -46,7 +46,7 @@ decl_module! {
 
 			Kitties::<T>::insert(&kitty_id, &kitty);
 
-			let mut user = Self::user_data(&account_id);
+			let mut user = UserData::<T>::get(&account_id);
 			user.add_kitty(kitty.clone());
 
 			UserData::<T>::insert(&account_id, &user);
@@ -59,28 +59,15 @@ decl_module! {
 		fn kitty_for_sale(origin, kitty_id: KittyIdType, price: KittyPriceType) {
 			let account_id = ensure_signed(origin)?;
 
-			let mut kitties_for_sale = Self::kitties_for_sale();
+			ensure!(!KittiesForSale::contains_key(&kitty_id), Error::<T>::KittyAlreadyForSale);
 
-			match kitties_for_sale.binary_search(&kitty_id) {
-				Ok(_) => {
-					// Err(Error::<T>::KittyAlreadyForSale); ??? it's not working
-					ensure!(false, Error::<T>::KittyAlreadyForSale);
-				},
-				Err(index) => {
-					kitties_for_sale.insert(index, kitty_id);
-				},
-			}
-			
-			let mut kitty = Kitties::<T>::get(kitty_id);
+			let kitty = Kitties::<T>::get(&kitty_id);
 			
 			ensure!(kitty.owner_id == account_id, Error::<T>::NotKittyOwner);
 
-			kitty.set_price(price);
+			KittiesForSale::insert(&kitty_id, &price);
 
-			Kitties::<T>::insert(&kitty_id, &kitty);
-			KittiesForSale::put(kitties_for_sale);
-
-			Self::deposit_event(RawEvent::KittyForSale(account_id, kitty));
+			Self::deposit_event(RawEvent::KittyForSale(account_id, kitty, price));
 		}
 	}
 }
@@ -93,7 +80,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	fn generate_kitty_id() -> KittyIdType {
-		let next_kitty_id = Self::next_kitty_id();
+		let next_kitty_id = NextKittyId::get();
 		// TODO - ERROR HANDLING
 		let next_kitty_id = next_kitty_id.checked_add(1).expect("next_kitty_id is out of scope");
 		NextKittyId::put(next_kitty_id);
@@ -113,7 +100,7 @@ decl_event! {
 		<T as system::Trait>::AccountId,
 	{
 		KittyCreated(AccountId, Kitty<AccountId>),
-		KittyForSale(AccountId, Kitty<AccountId>),
+		KittyForSale(AccountId, Kitty<AccountId>, KittyPriceType),
 		UserUpdated(AccountId, User<AccountId>),
 	}
 }
@@ -130,7 +117,6 @@ pub struct Kitty<AccountId> {
 	id: KittyIdType,
 	owner_id: AccountId,
 	dna: H256,
-	price: KittyPriceType,
 }
 
 impl<AccountId> Kitty<AccountId> {
@@ -139,12 +125,7 @@ impl<AccountId> Kitty<AccountId> {
 			id,
 			owner_id,
 			dna,
-			price: 0,
 		}
-	}
-
-	pub fn set_price(&mut self, price: KittyPriceType) {
-		self.price = price;
 	}
 }
 

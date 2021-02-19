@@ -4,8 +4,7 @@
     "Kitty": {
         "id": "KittyIdType",
         "owner_id": "AccountId",
-        "dna": "H256",
-        "price": "KittyPriceType"
+        "dna": "H256"
     },
     "User": {
         "kitties": "Vec<Kitty>"
