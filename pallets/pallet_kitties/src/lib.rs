@@ -11,12 +11,11 @@ use frame_support::{
 };
 use frame_system::{self as system, ensure_signed};
 use sp_std::{vec::Vec};
-use sp_core::{H256};
 
 pub trait Trait: system::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
-	type RandomnessSource: Randomness<H256>;
+	type RandomnessSource: Randomness<Self::Hash>;
 
 	type Currency: Currency<Self::AccountId>;
 }
@@ -27,7 +26,7 @@ type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::Ac
 decl_storage! {
 	trait Store for Module<T: Trait> as KittiesModule {
 		NextKittyId get(fn next_kitty_id): KittyIdType;
-		Kitties get(fn kitties): map hasher(blake2_128_concat) KittyIdType => Kitty<T::AccountId>;
+		Kitties get(fn kitties): map hasher(blake2_128_concat) KittyIdType => Kitty<T::AccountId, T::Hash>;
 
 		KittiesForSale get(fn kitties_for_sale): map hasher(blake2_128_concat) KittyIdType => BalanceOf<T>;
 
@@ -61,12 +60,11 @@ decl_module! {
 
 			Users::<T>::insert(&account_id, &user);
 
-			Self::deposit_event(RawEvent::KittyCreated(account_id.clone(), kitty));
-			Self::deposit_event(RawEvent::UserUpdated(account_id, user));
+			Self::deposit_event(RawEvent::KittyCreated(account_id, kitty));
 		}
 
 		#[weight = 10_000]
-		fn kitty_for_sale(origin, kitty_id: KittyIdType, price: BalanceOf<T>) {
+		fn sell_kitty(origin, kitty_id: KittyIdType, price: BalanceOf<T>) {
 			let account_id = ensure_signed(origin)?;
 
 			ensure!(!KittiesForSale::<T>::contains_key(&kitty_id), Error::<T>::KittyAlreadyForSale);
@@ -80,7 +78,7 @@ decl_module! {
 		}
 
 		#[weight = 10_000]
-		fn cancel_kitty_for_sale(origin, kitty_id: KittyIdType) {
+		fn cancel_sell_kitty(origin, kitty_id: KittyIdType) {
 			let account_id = ensure_signed(origin)?;
 
 			ensure!(KittiesForSale::<T>::contains_key(&kitty_id), Error::<T>::KittyIsNotForSale);
@@ -106,7 +104,7 @@ decl_module! {
 			T::Currency::transfer(&account_id, &kitty.owner_id, price, ExistenceRequirement::KeepAlive)?;
 			
 			KittiesForSale::<T>::remove(&kitty_id);
-			kitty.owner_id = account_id.clone();
+			kitty.set_owner(account_id.clone());
 			
 			Kitties::<T>::insert(&kitty_id, &kitty);
 
@@ -130,7 +128,7 @@ impl<T: Trait> Module<T> {
 		next_kitty_id
 	}
 
-	fn generate_random() -> H256 {
+	fn generate_random() -> T::Hash {
 		let subject = Self::encode_and_update_seed();
 		T::RandomnessSource::random(&subject)
 	}
@@ -140,14 +138,14 @@ decl_event! {
 	pub enum Event<T>
 	where
 		<T as system::Trait>::AccountId,
+		<T as system::Trait>::Hash,
 		Balance = BalanceOf<T>,
 	{
-		KittyCreated(AccountId, Kitty<AccountId>),
-		KittyForSale(AccountId, Kitty<AccountId>, Balance),
-		CancelKittyForSale(AccountId, Kitty<AccountId>),
-		UserUpdated(AccountId, User),
+		KittyCreated(AccountId, Kitty<AccountId, Hash>),
+		KittyForSale(AccountId, Kitty<AccountId, Hash>, Balance),
+		CancelKittyForSale(AccountId, Kitty<AccountId, Hash>),
 		Transfer(AccountId, AccountId),
-		KittyWasBought(AccountId, Kitty<AccountId>, Balance),
+		KittyWasBought(AccountId, Kitty<AccountId, Hash>, Balance),
 	}
 }
 
@@ -161,19 +159,23 @@ decl_error! {
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Default, Debug)]
-pub struct Kitty<AccountId> {
+pub struct Kitty<AccountId, Hash> {
 	id: KittyIdType,
 	owner_id: AccountId,
-	dna: H256,
+	dna: Hash,
 }
 
-impl<AccountId> Kitty<AccountId> {
-	pub fn new(id: KittyIdType, owner_id: AccountId, dna: H256) -> Kitty<AccountId> {
+impl<AccountId, Hash> Kitty<AccountId, Hash> {
+	pub fn new(id: KittyIdType, owner_id: AccountId, dna: Hash) -> Kitty<AccountId, Hash> {
 		Kitty {
 			id,
 			owner_id,
 			dna,
 		}
+	}
+
+	pub fn set_owner(&mut self, owner_id: AccountId) {
+		self.owner_id = owner_id;
 	}
 }
 
