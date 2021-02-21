@@ -58,6 +58,7 @@ sp-version = { default-features = false, version = '2.0.1' }
 
 # My dependencies
 pallet-nicks = { default-features = false, version = '2.0.1' }
+pallet-scheduler = { default-features = false, version = '2.0.1' }
 
 [features]
 default = ['std']
@@ -100,6 +101,8 @@ std = [
     'sp-version/std',
 
     'pallet-nicks/std',
+    'pallet-scheduler/std',
+
     'pallet-poe/std',
     'pallet-kitties/std',
 ]

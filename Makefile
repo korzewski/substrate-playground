@@ -26,10 +26,8 @@ run:
 build:
 	cargo build --release
 
-.PHONY: run-node1
 run-node1:
 	SKIP_WASM_BUILD=1 cargo run -- --base-path data/node1 --chain local --alice --telemetry-url 'wss://telemetry.polkadot.io/submit/ 0' --name validator-alice --validator
 	
-.PHONY: run-node2
 run-node2:
 	SKIP_WASM_BUILD=1 cargo run -- --base-path data/node2 --chain local --bob --port 30334 --telemetry-url 'wss://telemetry.polkadot.io/submit/ 0' --name validator-bob --validator
