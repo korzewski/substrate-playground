@@ -6,15 +6,15 @@ purge:
 
 restart: purge run
 
-.PHONY: init
 init:
 	./scripts/init.sh
 
-.PHONY: check
-check:
+check-release:
 	SKIP_WASM_BUILD=1 cargo check --release
 
-.PHONY: test
+check:
+	SKIP_WASM_BUILD=1 cargo check
+
 test:
 	SKIP_WASM_BUILD=1 cargo test --release --all
 

@@ -23,6 +23,8 @@ use sp_version::RuntimeVersion;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 
+use pallet_contracts_rpc_runtime_api::ContractExecResult;
+
 // A few exports that help ease life for downstream crates.
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
@@ -109,6 +111,10 @@ pub const SLOT_DURATION: u64 = MILLISECS_PER_BLOCK;
 pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
 pub const HOURS: BlockNumber = MINUTES * 60;
 pub const DAYS: BlockNumber = HOURS * 24;
+
+pub const MILLICENTS: Balance = 1_000_000_000;
+pub const CENTS: Balance = 1_000 * MILLICENTS;
+pub const DOLLARS: Balance = 100 * CENTS;
 
 /// The version information used to identify this runtime when compiled natively.
 #[cfg(feature = "std")]
@@ -228,8 +234,34 @@ impl pallet_timestamp::Trait for Runtime {
 }
 
 parameter_types! {
+	pub const TombstoneDeposit: Balance = 16 * MILLICENTS;
+    pub const RentByteFee: Balance = 4 * MILLICENTS;
+    pub const RentDepositOffset: Balance = 1000 * MILLICENTS;
+    pub const SurchargeReward: Balance = 150 * MILLICENTS;
+}
+
+parameter_types! {
 	pub const ExistentialDeposit: u128 = 2000;
 	pub const MaxLocks: u32 = 50;
+}
+
+impl pallet_contracts::Trait for Runtime {
+	type Time = Timestamp;
+    type Randomness = RandomnessCollectiveFlip;
+    type Currency = Balances;
+    type Event = Event;
+    type DetermineContractAddress = pallet_contracts::SimpleAddressDeterminer<Runtime>;
+    type TrieIdGenerator = pallet_contracts::TrieIdFromParentCounter<Runtime>;
+    type RentPayment = ();
+    type SignedClaimHandicap = pallet_contracts::DefaultSignedClaimHandicap;
+    type TombstoneDeposit = TombstoneDeposit;
+    type StorageSizeOffset = pallet_contracts::DefaultStorageSizeOffset;
+    type RentByteFee = RentByteFee;
+    type RentDepositOffset = RentDepositOffset;
+    type SurchargeReward = SurchargeReward;
+    type MaxDepth = pallet_contracts::DefaultMaxDepth;
+    type MaxValueSize = pallet_contracts::DefaultMaxValueSize;
+    type WeightPrice = pallet_transaction_payment::Module<Self>;
 }
 
 impl pallet_balances::Trait for Runtime {
@@ -296,6 +328,7 @@ construct_runtime!(
 
 		Nicks: pallet_nicks::{Module, Call, Storage, Event<T>},
 		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
+		Contracts: pallet_contracts::{Module, Call, Config, Storage, Event<T>},
 
 		PoeModule: pallet_poe::{Module, Call, Storage, Event<T>},
 		KittiesModule: pallet_kitties::{Module, Call, Storage, Event<T>},
@@ -337,6 +370,40 @@ pub type Executive = frame_executive::Executive<
 >;
 
 impl_runtime_apis! {
+	impl pallet_contracts_rpc_runtime_api::ContractsApi<Block, AccountId, Balance, BlockNumber> for Runtime {
+        fn call(
+            origin: AccountId,
+            dest: AccountId,
+            value: Balance,
+            gas_limit: u64,
+            input_data: Vec<u8>,
+        ) -> ContractExecResult {
+            let (exec_result, gas_consumed) =
+                Contracts::bare_call(origin, dest.into(), value, gas_limit, input_data);
+            match exec_result {
+                Ok(v) => ContractExecResult::Success {
+                    flags: v.flags.bits(),
+                    data: v.data,
+                    gas_consumed: gas_consumed,
+                },
+                Err(_) => ContractExecResult::Error,
+            }
+        }
+
+        fn get_storage(
+            address: AccountId,
+            key: [u8; 32],
+        ) -> pallet_contracts_primitives::GetStorageResult {
+            Contracts::get_storage(address, key)
+        }
+
+        fn rent_projection(
+            address: AccountId,
+        ) -> pallet_contracts_primitives::RentProjectionResult<BlockNumber> {
+            Contracts::rent_projection(address)
+        }
+    }
+
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
 			VERSION
